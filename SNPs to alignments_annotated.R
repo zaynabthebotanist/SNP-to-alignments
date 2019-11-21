@@ -26,20 +26,13 @@ library(vcfR)
 
 
 # read vcf
-vcf <- read.vcfR("DP3g95p5maf05.fil5.FIL.prim.vcf")
+vcf <- read.vcfR("")
 
 # include only relevant samples (by name) in c()
 # RE that the gt element in a vcf includes a column called FORMAT, which we also want to keep
 # so start like: c("FORMAT", "sample1", "sample2" etc...)
 
-vcf <- vcf[, which(colnames(vcf@gt) %in% c("FORMAT",
-                                           "S10_5a",	"S12_2a",	"S1_3c",	"S16_6a",	"S17_1a",
-                                           "S18_10a",	"S19_8a",	"S20_7a",	"S21_3a",	"S2_1c",
-                                           "S22_13a",	"S25_5a",	"S2_5c",	"S26_1a",	"S27_9a",
-                                           "S28_1a",	"S2_8a",	"S29_8b",	"S30_8b",	"S32_1a",	"S32_3a",
-                                           "S32_8b",	"S33_11a",	"S34_1a",	"S35_8a",	"S39_7a",	"S41_9a",
-                                           "S4_1a",	"S42_1b",	"S43_7b",	"S44_6a",	"S45_1a",	"S47_2a",
-                                           "S48_7a",	"S8_8a",	"S9_6a"))]
+vcf <- vcf[, which(colnames(vcf@gt) %in% c())]
 
 # exclude loci with any missing data. The rationale is that
 # if we're going to use the variant scaffold identifiers to produce alignments, we want to 
