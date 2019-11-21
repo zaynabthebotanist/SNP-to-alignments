@@ -5,8 +5,6 @@
 # (1) a filtered .vcf file including scaffold identifiers
 # (2) BAM files for each individual containing reads
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper")
-
 library(adegenet)
 library(ape)
 library(Biostrings)
@@ -28,10 +26,20 @@ library(vcfR)
 
 
 # read vcf
-vcf <- read.vcfR("")
+vcf <- read.vcfR("DP3g95p5maf05.fil5.FIL.prim.vcf")
 
-#include only relevant samples (by name) in c()
-vcf <- vcf[, which(colnames(vcf@gt) %in% c())]
+# include only relevant samples (by name) in c()
+# RE that the gt element in a vcf includes a column called FORMAT, which we also want to keep
+# so start like: c("FORMAT", "sample1", "sample2" etc...)
+
+vcf <- vcf[, which(colnames(vcf@gt) %in% c("FORMAT",
+                                           "S10_5a",	"S12_2a",	"S1_3c",	"S16_6a",	"S17_1a",
+                                           "S18_10a",	"S19_8a",	"S20_7a",	"S21_3a",	"S2_1c",
+                                           "S22_13a",	"S25_5a",	"S2_5c",	"S26_1a",	"S27_9a",
+                                           "S28_1a",	"S2_8a",	"S29_8b",	"S30_8b",	"S32_1a",	"S32_3a",
+                                           "S32_8b",	"S33_11a",	"S34_1a",	"S35_8a",	"S39_7a",	"S41_9a",
+                                           "S4_1a",	"S42_1b",	"S43_7b",	"S44_6a",	"S45_1a",	"S47_2a",
+                                           "S48_7a",	"S8_8a",	"S9_6a"))]
 
 # exclude loci with any missing data. The rationale is that
 # if we're going to use the variant scaffold identifiers to produce alignments, we want to 
@@ -45,20 +53,23 @@ myMiss <- myMiss / ncol(dp)
 vcf <- vcf[myMiss < 0.05, ]
 vcf
 
-#query the scaffolds identifiers with reads containing variants mapped to them
+#query the scaffolds identifiers with reads containing variants mapped to them and assign to variable "tag"
 head(vcf)
 tag <- vcf@fix[ ,1] 
 tag <- data.frame(tag)
 names(tag) <- "name"
+write.csv(tag, "tag.csv")
 
-
-#next, let's import the binary allignment map (BAM) files using Rsamtools
+# next, let's import the binary allignment map (BAM) files using Rsamtools
 
 # first we want to filter the BAM files to include only sequences containing variants
 # These files are typically large and require lots of memory
 # as such, individual import, filtering and export as .RData files is required
+# the following three loops are for one BAM file
 
-filenames <- as.list(list.files(pattern = "*.bam"))[36]  
+tag <- read.csv("tag.csv")[,2]
+
+filenames <- as.list(list.files(pattern = "*.bam"))[1]  
 n <- c(1:length(filenames))
 bam <- list()
 for (i in n) {
@@ -67,26 +78,29 @@ for (i in n) {
 
 bamint <- list()
 for (j in n) {
-  bamint[[i]] <- bam[[i]][bam[[i]]$rname %in% intersect, ]
+  bamint[[i]] <- bam[[i]][bam[[i]]$rname %in% unique(tag), ]
 }
 
-save(bamint, file = "bam.RData")  #I named mine bam1, bam2... bam36
-rm(bam, bamint, filenames)
-
+save(bamint, file = "bamtest.RData") 
 
 #generate consensus sequences from short reads + align them
 
 #load BAMs and set
-filenames <- as.list(paste0("bam", seq(1:36), ".RData"))
-load(filenames[[36]])
+filenames <- as.list(paste0("bamtest", ".RData"))  #this can be modified to load multiple files
+load(filenames[[1]])
 
-scaff <- bamint1[[1]]
+scaff <- bamint[[1]]
 scaff$rname <- as.character(scaff$rname)
-split <- split(scaff, f = scaff$rname) #splits scaff by shared chrom
+split <- split(scaff, f = scaff$rname) #splits read data by scaffold aligned to
+split[[1]] # this is the first element in the list "split", note that the reads are all
+           # aligned to the same scaffold, as we wanted
 
 #####################
 ########LOOPS########
 #####################
+
+# at this point, we have a series of reads aligned to the same scaffold
+# now let's haplotype them
 
 ## (1) create DNAStringSet objects
 n <- c(1:length(split))
@@ -258,8 +272,8 @@ for (i in n) {
   names(haplo4[[i]]) <- unique(names(dna[[i]]))
 }
 
-haplo_1.1 <- list(haplo1, haplo2, haplo3, haplo4)
-save(haplo_1.1, file = "haplotypes_1.1.RData")
+haplo_1 <- list(haplo1, haplo2, haplo3, haplo4)
+save(haplo_1, file = "haplotypes_1.RData")
 
 rm(list=setdiff(ls(), c("dna", "haplotype1", "haplotype2", "row1", "row.2")))
 #Clear memory of anything unneccessary
@@ -306,7 +320,6 @@ for (i in n) {
   names(conhap1A[[i]]) <- paste0(names1[[i]])
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\36 inds")
 save(conhap1A, file = "conhap1A.RData")
 
 rm(list=setdiff(ls(), c("hap_1", "dna", "haplotype1", "haplotype2", "row1", "row.2")))
@@ -356,7 +369,6 @@ for (i in n) {
 conhap.1 <- conhap_1[lengths(conhap_1) > 0]
 
 ## (5) export the consensus sequences
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\haplotype consensus sequences")
 
 nam1 <- list()
 n <- c(1:length(conhap.1))
@@ -365,8 +377,8 @@ for (i in n) {
 }
 nam1 <- unlist(nam1)
 
-write.fasta(sequences = conhap.1, names = paste0(nam1,"_hap1" ,"_9.6"), nbchar = 1000,
-            file.out = "conhap1_9_6.fasta")
+write.fasta(sequences = conhap.1, names = paste0(nam1,"_hap1" ,"_1"), nbchar = 1000,
+            file.out = "conhap1_1.fasta")
 
 ################
 ################
@@ -403,7 +415,6 @@ for (i in n) {
   names(conhap2A[[i]]) <- paste0(names2[[i]])
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\36 inds")
 save(conhap2A, file = "conhap2A.RData")
 
 rm(list=setdiff(ls(), c("hap_2", "row.2")))
@@ -447,8 +458,6 @@ for (i in n) {
 
 conhap.2 <- conhap_2[lengths(conhap_2) > 0]
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\haplotype consensus sequences")
-
 nam2 <- list()
 n <- c(1:length(conhap.2))
 for (i in n) {
@@ -456,21 +465,20 @@ for (i in n) {
 }
 nam2 <- unlist(nam2)
 
-write.fasta(sequences = conhap.2, names = paste0(nam2,"_hap2" ,"_9.6"), nbchar = 1000,
-            file.out = "conhap2_9_6.fasta")
+write.fasta(sequences = conhap.2, names = paste0(nam2,"_hap2" ,"_1"), nbchar = 1000,
+            file.out = "conhap2_1.fasta")
 
 ################################################
 ###Read in the fastas and align them############
 ################################################
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\haplotype consensus sequences")
-library("seqinr")
-library("ShortRead")
-library("stringr")
-library("DescTools")
+library(seqinr)
+library(ShortRead)
+library(stringr)
+library(DescTools)
 
 #read in the haplotype consensus sequence fastas
-seqs <- readFasta("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\haplotype consensus sequences")
+seqs <- readFasta("")
 seq <-  seqs[order(seqs@id), ] ##sort by scaffold
 
 names <- str_split_fixed(seq@id, "_", 2)
@@ -555,7 +563,6 @@ for (i in n) {
   cstr1[[i]] <- cstr[[i]][order(names(cstr[[i]])), ]
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final")
 for (i in n) {
   writeXStringSet(cstr1[[i]], file= paste0(names[[i]], ".fasta"))
 }
@@ -571,14 +578,12 @@ save(cstr1, file = "haplotype alignments.RData")
 # the resulting alignments clearly contain some very problematic sequences
 # that are not worth retaining, so let's do some QC:
 
-library("ips")
-library("adegenet")
-library("ape")
-library("psych")
-library("Biostrings")
-library("seqinr")
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final")
+library(ips)
+library(adegenet)
+library(ape)
+library(psych)
+library(Biostrings)
+library(seqinr)
 
 files <- list.files(pattern = "*.fasta")
 n <- c(1:length(files))
@@ -635,8 +640,6 @@ names.var <- as.list(names(var))
 
 ##import only the high PIS files
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final")
-
 n <- c(1:length(names.var))
 file <- list()
 for (i in n) {
@@ -656,8 +659,6 @@ plot(nj, cex = 0.5)
 ##haplotypes, then exclude them from the analysis as multicopy loci
 #*********************************************************************
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\haplotypes")
-
 haplotypes <- list.files(pattern = "*.RData")
 n <- c(1:length(haplotypes))
 haplo <- list()
@@ -665,13 +666,8 @@ for (i in n) {
   haplo[[i]] <- load(paste0(haplotypes[[i]]))
 }
 
-dp <- list(haplo_12.2,  haplo_16.6,  haplo_17.1,  haplo_18.10, haplo_19.8,
-              haplo_2.1,   haplo_2.5,   haplo_2.8,   haplo_20.7,  haplo_21.3,
-              haplo_22.13, haplo_25.5,  haplo_26.1,  haplo_27.9,  haplo_28.1,
-              haplo_29.8,  haplo_30.8,  haplo_32.1, haplo_32.3,  haplo_32.8,
-              haplo_33.11, haplo_34.1,  haplo_35.8, haplo_39.7,  haplo_4.1,
-              haplo_41.9,  haplo_42.1,  haplo_43.7,  haplo_44.6,  haplo_45.1,
-              haplo_47.2,  haplo_48.7,  haplo_8.8,  haplo_9.6, haplo_1.3,  haplo_10.5)
+#insert haplo file names:
+dp <- list()
 
 
 ##Get the names of the high freq reads in hap3 and hap4
@@ -729,7 +725,6 @@ int <- intersect(unique(hap3names), unique(hap4names)) ##candidates for exclusio
 exclude <- c(excl1, excl2, int)
 exclude <- unique(exclude)
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final")
 load("haplotype alignments.RData")
 
 n <- c(1:length(cstr1))
@@ -746,7 +741,6 @@ for (i in n) {
   cstr2[[i]] <- readDNAStringSet(paste0(diff[[i]], ".fasta"), "fasta")
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered")
 save(cstr2, file = "filtered alignments.RData")
 for (i in n) {
   writeXStringSet(cstr2[[i]], file= paste0(diff[[i]], ".fasta"))
@@ -762,8 +756,6 @@ load("filtered alignments.RData")
 
 ##include a duplicate of hap1 for "hap2" for homozygous haplotypes, as required by DISSECT
 library(stringi)
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered")
 
 load("filtered alignments.RData")  #read in the haplotype consensus sequence fastas
 
@@ -851,8 +843,6 @@ for (i in n) {
 }
 
 ##export
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final")
 
 names <- list()
 for (i in n) {
@@ -944,7 +934,6 @@ for (i in n){
 
 lengths(lst.new) #yep
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready")
 save(lst.new, file = "haplotype alignments_DISSECT ready_with blank sequences.RData")
 
 for (i in n) {
@@ -954,12 +943,10 @@ for (i in n) {
 #############################
 ###Querying matching SNPs####
 #############################
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready")
+
 load("haplotype alignments_DISSECT ready_with blank sequences.RData")
 names <- list.files(pattern = "*.fasta")
 names <- gsub('.{6}$', '', names)
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper")
 
 library("LEA")
 library("plyr")
@@ -1013,26 +1000,10 @@ mean(c[,1])
   
 #####
 
-vcf <- vcf[, which(colnames(vcf@gt) %in% c("FORMAT",
-                                           "S10_5a",	"S12_2a",	"S1_3c",	"S16_6a",	"S17_1a",
-                                           "S18_10a",	"S19_8a",	"S20_7a",	"S21_3a",	"S2_1c",
-                                           "S22_13a",	"S25_5a",	"S2_5c",	"S26_1a",	"S27_9a",
-                                           "S28_1a",	"S2_8a",	"S29_8b",	"S30_8b",	"S32_1a",	"S32_3a",
-                                           "S32_8b",	"S33_11a",	"S34_1a",	"S35_8a",	"S39_7a",	"S41_9a",
-                                           "S4_1a",	"S42_1b",	"S43_7b",	"S44_6a",	"S45_1a",	"S47_2a",
-                                           "S48_7a",	"S8_8a",	"S9_6a"))]
+vcf <- vcf[, which(colnames(vcf@gt) %in% c())]
 
 vcfr <- subset(vcf, vcf@fix[,1] %in% c(names))
 
-#***** Object of Class vcfR *****
-#36 samples
-#915 CHROMs
-#3,172 variants
-#Object size: 9.4 Mb
-#0 percent missing data
-#*****        *****         *****
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready")
 vcfR::write.vcf(vcfr, file = "filter.vcf")
 
 ##filter out indels and >2 state SNPs
@@ -1040,14 +1011,6 @@ vcfR::write.vcf(vcfr, file = "filter.vcf")
 #import .vcf:
 vcf <- vcfR::read.vcfR("filter.vcf")
 vcf_sansindel <- extract.indels(vcf, return.indels = FALSE)
-
-#***** Object of Class vcfR *****
-#36 samples
-#899 CHROMs
-#2,928 variants
-#Object size: 8.6 Mb
-#0 percent missing data
-#*****        *****         *****
 
 ##which ones did contain indels?
 vcf_test <- extract.indels(vcf, return.indels = TRUE)
@@ -1102,166 +1065,26 @@ for (i in n) {
   file[[i]] <- readDNAStringSet(paste0(sample_chroms[[i]], ".fasta"))
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic")
-
 for (i in n) {
   writeXStringSet(file[[i]], file= paste0(sample_chroms[[i]], ".fasta"))
 }
 
 save(file, file = "fastas_indel_biallelic.RData")
 
-#########################################
-##Interrogate patterns of missing data###
-#########################################
-library("plotrix")
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic")
-load("fastas_indel_biallelic.RData")
-
-n <- c(1:length(file))
-test <- list()
-for (i in n) {
-  test[[i]] <- as.character(file[[i]])
-}
-
-test1 <- list()
-for (i in n) {
-  test1[[i]] <- grepl("------------------------------------------------------------------------------------------------",
-                      test[[i]])
-}
-
-files <- list()
-for (i in n){
-  files[[i]] <- file[[i]][test1[[i]] == FALSE]
-}
-
-names.un <- list()
-for (i in n) {
-  names.un[[i]] <- substr(names(files[[i]]), 1, nchar(names(files[[i]]))-5)
-}
-
-names.uni <- list()
-for (i in n) {
-  names.uni[[i]] <- gsub(".*_", "", names.un[[i]])
-}
-
-names.uniq <- list()
-for (i in n){
-  names.uniq[[i]] <- unique(names.uni[[i]])
-}
-
-differs <- unique(unlist(names.uniq))  ##all 36 inds
-
-##list of inds not captured for each of the markers
-diff <- list()
-for (i in n) {
-  diff[[i]] <- setdiff(differs, names.uniq[[i]])
-}
-
-###Make a boolean matrix for the plot
-#(1) Data frame
-
-folios <- as.list(list.files(pattern = "*.fasta"))
-folio <- lapply(folios, function(x) substr(x, 1, nchar(x)-6))
-
-n <- c(1:length(files))
-boolist <- list()
-for (i in n) {
-  boolist[[i]] <-  rep(folio[[i]], length(names.uniq[[i]]))
-}
-
-df <- cbind(data.frame(unlist(boolist)), data.frame(unlist(names.uniq)))
-names(df) <- c("marker", "individual")
-
-boolean <- table(df)
-head(boolean)
-
-#(2) plot boolean matrix
-install.packages("VIM")
-
-image(table(df), xlab = "markers (1-816)", ylab = "individual",
-      col = c("black", "white"), axes = FALSE)
-axis(2, labels=colnames(boolean), lwd=1, at = seq(0,1, length=36), col = "black", las = 2, cex.axis = 0.7)
-axis(1)
-
-title("absent
-present", cex.main = 0.7)
-
-
-##Order according to missingness:
-
-boolean_ord <- as.matrix(boolean)
-boolean_ordered <- boolean_ord[order(rowSums(boolean_ord)), ]
-
-image(boolean_ordered, xlab = "markers (1-816)", ylab = "individual",
-      col = c("black", "white"), axes = FALSE)
-axis(2, labels=colnames(boolean_ordered), lwd=1, at = seq(0,1, length=36), col = "black", las = 2, cex.axis = 0.7)
-axis(1)
-text(x = 0, y = 1.1, labels = "max missing (23)")
-
-title("absent
-      present", cex.main = 0.7)
-
-
-#################################
-####PCA of the data##############
-#################################
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic")
-
-vcf <- read.vcfR("vcf_indel_biallelic.vcf")
-gl <- vcfR2genlight(vcf)
-
-nInd(gl)
-nLoc(gl)
-indNames(gl)
-
-pop.assign <- c("plumosum", "plumosum", "plumosum", "crypticum",
-                "plumosum", "plumosum", "virgatum", "alto-argillaceum",
-                "alto-argillaceum", "alto-argillaceum", "burchellii",
-                "burchellii", "dunensis", "plumosum", "burchellii",
-                "burchellii", "plumosum", "virgatum", "dunensis",
-                "cinereum", "cinereum", "cinereum", "vulgaris",
-                "burrowsii", "vulgaris", "vulgaris", "crypticum",
-                "vulgaris", "virgatum", "virgatum", "dunensis",
-                "burrowsii", "plumosum", "dunensis", "crypticum",
-                "plumosum")
-
-
-
-dat.pop.assign<-data.frame(pop.assign)
-strata(gl)<-data.frame(dat.pop.assign)
-setPop(gl)<-~pop.assign
-nPop(gl)
-levels(pop(gl))
-table(pop(gl))
-
-#To find & exclude the SNPs with missing data:
-toRemove <- is.na(glMean(gl, alleleAsUnit = FALSE)) # TRUE where NA
-which(toRemove)
-gl <- gl[, !toRemove]
-
-
-pc<-gl.pcoa(gl, nfactors=3)
-
-gl.pcoa.plot(pc, gl, labels="pop", xaxis=2, yaxis=3)
-gl.pcoa.plot.3d(pc, gl, radius = 3)
 
 ####Removing paralogues
 
-library("Biostrings")
-library("phangorn")
-library("ape")
-library("Rcpp")
-library("stats")
-library("DECIPHER")
-library("gdata")
-library("seqinr")
+library(Biostrings)
+library(phangorn)
+library(ape)
+library(Rcpp)
+library(stats)
+library(DECIPHER)
+library(gdata)
+library(seqinr)
 
 ##First query whether the 1st and 2nd haps for an ind fall in the same
 ##clade in a upgma tree. We expect paralogs to fall in different clades  
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic")
 
 files <- list.files(pattern = "*.fasta")[c(1:810, 812:816)]
 n <- c(1:length(files))
@@ -1400,8 +1223,6 @@ for (i in n) {
   file[[i]] <- readDNAStringSet(file = files[[i]], format = "fasta")
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic\\upgma lenient")
-
 for (i in n) {
   writeXStringSet(file[[i]], file = files[[i]])
 }
@@ -1415,19 +1236,15 @@ for (i in n) {
   file[[i]] <- readDNAStringSet(file = files[[i]], format = "fasta")
 }
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic\\upgma strict")
-
 for (i in n) {
   writeXStringSet(file[[i]], file = files[[i]])
 }
 
 ##filter vcf by alignments obtained via UPGMA filtering:
 
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper")
+# original vcf name 
+vcf <- read.vcfR()
 
-vcf <- read.vcfR("vcf_indel_biallelic.vcf")
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic\\upgma_strict")
 filenames <- as.list(list.files(pattern = "*.fasta"))  ##have to subset
 files <- unlist(strsplit(unlist(filenames), ".fasta"))
 
@@ -1438,9 +1255,6 @@ vcfR::write.vcf(vcf_strict, file = "vcf_strict.vcf")
 
 strict_excl <-  files[which(bi == FALSE)]
 
-#"C6496201" "C6514575" "C7070365" "C7515511" "C7829121" "C7848633" 
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper\\BAM files\\final\\PIS and haplotype filtered\\final\\dissect-ready\\fastas_indels_biallelic\\upgma_lenient")
 filenames <- as.list(list.files(pattern = "*.fasta"))  ##have to subset
 files <- unlist(strsplit(unlist(filenames), ".fasta"))
 
@@ -1451,18 +1265,6 @@ vcfR::write.vcf(vcf_lenient, file = "vcf_lenient.vcf")
 
 lenient_excl <- files[which(bi == FALSE)]
 
-# "C6496201" "C6514575" "C7070365" "C7169541" "C7396185" "C7515511" "C7632417" "C7829121" "C7848633"
-
-
 ##Convert to nexus
-install.packages("remotes")
-remotes::install_github("shankarkshakya/mypackage")
-
-setwd("C:\\Users\\User\\Desktop\\Tony-Bengt Paper")
-
-vcf_strict <- read.vcfR("vcf_strict.vcf")
-vcf_lenient <- read.vcfR("vcf_lenient.vcf")
-
-vcf2SNAPP(vcf_strict, file = "strict.nex")
 vcf2SNAPP(vcf_lenient, file = "lenient.nex")
 
