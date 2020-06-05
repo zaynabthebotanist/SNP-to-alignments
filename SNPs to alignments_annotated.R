@@ -1257,6 +1257,4 @@ vcfR::write.vcf(vcf_lenient, file = "vcf_lenient.vcf")
 
 lenient_excl <- files[which(bi == FALSE)]
 
-##Convert to nexus
-vcf2SNAPP(vcf_lenient, file = "lenient.nex")
 
